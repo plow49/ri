@@ -19,7 +19,7 @@ py -3.12 -m unittest -v
 if errorlevel 1 goto fail
 py -3.12 -c "import tkinter; r=tkinter.Tk(); r.withdraw(); r.destroy()"
 if errorlevel 1 goto fail
-powershell -NoProfile -Command "$w=New-Object -ComObject WScript.Shell; $name='M_'+[char]0xBB3C+[char]0xD488+[char]0xAD00+[char]0xB9AC; $s=$w.CreateShortcut([IO.Path]::Combine([Environment]::GetFolderPath('Desktop'),$name+'.lnk')); $s.TargetPath=[IO.Path]::Combine((Get-Location).Path,'run-windows.cmd'); $s.WorkingDirectory=(Get-Location).Path; $s.Save()"
+powershell -NoProfile -Command "$w=New-Object -ComObject WScript.Shell; $name=[string][char]0xBB3C+[char]0xD488+[char]0xAD00+[char]0xB9AC; $s=$w.CreateShortcut([IO.Path]::Combine([Environment]::GetFolderPath('Desktop'),$name+'.lnk')); $s.TargetPath=[IO.Path]::Combine((Get-Location).Path,($name+'.cmd')); $s.WorkingDirectory=(Get-Location).Path; $s.IconLocation=[IO.Path]::Combine((Get-Location).Path,'assets\inventory.ico'); $s.Save(); $s=$w.CreateShortcut([IO.Path]::Combine((Get-Location).Path,$name+'.lnk')); $s.TargetPath=[IO.Path]::Combine((Get-Location).Path,($name+'.cmd')); $s.WorkingDirectory=(Get-Location).Path; $s.IconLocation=[IO.Path]::Combine((Get-Location).Path,'assets\inventory.ico'); $s.Save()"
 if errorlevel 1 goto fail
 echo Installation completed. Open your new desktop shortcut.
 pause
