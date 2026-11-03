@@ -3,7 +3,7 @@ from pathlib import Path
 from datetime import date
 import sqlite3
 import tkinter as tk
-from tkinter import ttk, messagebox, font
+from tkinter import ttk, messagebox, font, simpledialog
 
 ROOT=Path(__file__).resolve().parent
 
@@ -11,6 +11,7 @@ class Store:
     def __init__(self,path):
         self.db=sqlite3.connect(path)
         self.db.execute('CREATE TABLE IF NOT EXISTS entries (id INTEGER PRIMARY KEY, item TEXT NOT NULL, qty INTEGER NOT NULL CHECK(qty>0), direction TEXT NOT NULL, reason TEXT NOT NULL, day TEXT NOT NULL, person TEXT NOT NULL)')
+        self.db.execute('CREATE TABLE IF NOT EXISTS inventory (item TEXT PRIMARY KEY, opening INTEGER NOT NULL CHECK(opening>=0))')
         self.db.commit()
     def save(self,values,ident=None):
         item,qty,direction,reason,day,person=(str(v).strip() for v in values)
@@ -29,11 +30,27 @@ class Store:
             else:
                 c=self.db.execute('UPDATE entries SET item=?,qty=?,direction=?,reason=?,day=?,person=? WHERE id=?',args+(ident,))
                 if c.rowcount!=1:raise ValueError('수정할 항목을 찾지 못했습니다.')
+    def set_total(self,item,total):
+        item=str(item).strip()
+        if not item: raise ValueError('물품명을 입력하세요.')
+        try: total=int(str(total).strip())
+        except ValueError: raise ValueError('총수량은 정수로 입력하세요.') from None
+        if total<0: raise ValueError('총수량은 0 이상이어야 합니다.')
+        with self.db:
+            self.db.execute('INSERT INTO inventory(item,opening) VALUES(?,?) ON CONFLICT(item) DO UPDATE SET opening=excluded.opening',(item,total))
+    def summary(self):
+        return self.db.execute("""SELECT names.item, i.opening,
+          COALESCE(SUM(CASE WHEN e.direction='반입' THEN e.qty ELSE 0 END),0),
+          COALESCE(SUM(CASE WHEN e.direction='반출' THEN e.qty ELSE 0 END),0),
+          i.opening+COALESCE(SUM(CASE WHEN e.direction='반입' THEN e.qty ELSE -e.qty END),0)
+          FROM (SELECT item FROM inventory UNION SELECT item FROM entries) names
+          LEFT JOIN inventory i ON i.item=names.item LEFT JOIN entries e ON e.item=names.item
+          GROUP BY names.item,i.opening ORDER BY names.item""").fetchall()
     def rows(self):return self.db.execute('SELECT id,item,qty,direction,reason,day,person FROM entries ORDER BY id DESC').fetchall()
 
 class App(tk.Tk):
     def __init__(self):
-        super().__init__();self.title('M_물품관리');self.geometry('1100x680');self.minsize(860,520)
+        super().__init__();self.title('M_물품관리');self.geometry('1150x850');self.minsize(950,700)
         self.store=Store(ROOT/'materials.db')
         family='Malgun Gothic' if 'Malgun Gothic' in font.families() else 'DejaVu Sans'
         self.option_add('*Font',(family,11))
@@ -46,6 +63,19 @@ class App(tk.Tk):
         header=tk.Frame(self,bg='#112035');header.pack(fill='x')
         tk.Label(header,text='M_물품관리',font=(family,23,'bold'),bg='#112035',fg='white').pack(anchor='w',padx=24,pady=(20,6))
         tk.Label(header,text='물품 반출 · 반입 기록',bg='#112035',fg='#a5c8d3').pack(anchor='w',padx=24,pady=(0,20))
+        totals=ttk.LabelFrame(self,text='물품별 수량 현황',padding=12)
+        totals.pack(fill='x',padx=24,pady=(16,0))
+        ttk.Button(totals,text='물품 총수량 입력 / 수정',command=self.total_editor).pack(anchor='w',pady=(0,8))
+        ttk.Label(totals,text='현재 수량 = 기준 총수량 + 기록된 반입 − 기록된 반출 (같은 물품명끼리 합산)').pack(anchor='w',pady=(0,8))
+        grid=ttk.Frame(totals);grid.pack(fill='x')
+        self.summary_table=ttk.Treeview(grid,columns=('item','total','in','out','current'),show='headings',height=4,selectmode='browse')
+        for c,label in zip(('item','total','in','out','current'),('물품명','기준 총수량','누적 반입','누적 반출','현재 수량')):
+            self.summary_table.heading(c,text=label);self.summary_table.column(c,width=170,anchor='center')
+        scrollbar=ttk.Scrollbar(grid,orient='vertical',command=self.summary_table.yview)
+        scrollbar.pack(side='right',fill='y');self.summary_table.configure(yscrollcommand=scrollbar.set)
+        self.summary_table.pack(fill='x')
+        self.summary_table.tag_configure('warning',foreground='#b91c1c')
+        self.summary_table.bind('<Double-1>',lambda e:self.total_editor())
         bar=ttk.Frame(self);bar.pack(fill='x',padx=24,pady=16)
         ttk.Button(bar,text='＋ 항목 추가',command=self.add).pack(side='left')
         ttk.Button(bar,text='선택 항목 수정',command=self.edit).pack(side='left',padx=10)
@@ -67,7 +97,36 @@ class App(tk.Tk):
         for n,row in enumerate(rows):self.table.insert('', 'end',iid=str(row[0]),values=row,tags=('alternate',) if n%2 else ())
         if selected is not None and self.table.exists(str(selected)):
             self.table.selection_set(str(selected));self.table.see(str(selected))
-        self.status.config(text=f'총 {len(rows)}건  ·  이 컴퓨터에 자동 저장됩니다')
+        self.summary_table.delete(*self.summary_table.get_children())
+        summaries=self.store.summary()
+        for row in summaries:
+            self.summary_table.insert('', 'end',values=[v if v is not None else '미입력' for v in row],tags=('warning',) if row[4] is not None and row[4]<0 else ())
+        self.status.config(text=f'물품 {len(summaries)}종 · 반출/반입 기록 {len(rows)}건 · 이 컴퓨터에 자동 저장됩니다')
+    def total_editor(self):
+        selected=self.summary_table.selection()
+        current=self.summary_table.item(selected[0])['values'] if selected else None
+        dialog=tk.Toplevel(self);dialog.title('물품 총수량 입력 / 수정');dialog.transient(self);dialog.resizable(False,False)
+        frame=ttk.Frame(dialog,padding=24);frame.pack()
+        ttk.Label(frame,text='물품명').grid(row=0,column=0,pady=8,sticky='w')
+        name=tk.StringVar(value=current[0] if current else '')
+        field=ttk.Combobox(frame,textvariable=name,values=[r[0] for r in self.store.summary()],width=28)
+        field.grid(row=0,column=1,padx=12)
+        ttk.Label(frame,text='기준 총수량').grid(row=1,column=0,pady=8,sticky='w')
+        quantity=tk.StringVar(value=str(current[1]) if current and current[1]!='미입력' else '')
+        ttk.Entry(frame,textvariable=quantity,width=30).grid(row=1,column=1,padx=12)
+        ttk.Label(frame,text='모든 반출·반입 기록을 반영하기 전의 수량을 입력하세요.').grid(row=2,column=0,columnspan=2,pady=12)
+        def select_item(event):
+            match=next((r for r in self.store.summary() if r[0]==name.get()),None)
+            quantity.set(str(match[1]) if match and match[1] is not None else '')
+        field.bind('<<ComboboxSelected>>',select_item)
+        def save():
+            try:self.store.set_total(name.get(),quantity.get())
+            except (ValueError,sqlite3.Error) as exc:messagebox.showerror('저장 실패',str(exc),parent=dialog);return
+            self.refresh();dialog.destroy()
+        buttons=ttk.Frame(frame);buttons.grid(row=3,column=0,columnspan=2,sticky='e')
+        ttk.Button(buttons,text='취소',command=dialog.destroy).pack(side='left',padx=8)
+        ttk.Button(buttons,text='저장',command=save).pack(side='left')
+        dialog.grab_set();field.focus_set()
     def add(self):self.editor()
     def edit(self):
         selected=self.table.selection()
