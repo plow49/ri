@@ -25,7 +25,7 @@ if errorlevel 1 goto failure
 if errorlevel 1 goto failure
 .venv\Scripts\python.exe -c "import tkinter; r=tkinter.Tk(); r.withdraw(); r.destroy()"
 if errorlevel 1 goto failure
-powershell -NoProfile -Command "$w = New-Object -ComObject WScript.Shell; $s = $w.CreateShortcut([IO.Path]::Combine([Environment]::GetFolderPath('Desktop'), 'RI ERP.lnk')); $s.TargetPath = [IO.Path]::Combine((Get-Location).Path, 'run-windows.cmd'); $s.WorkingDirectory = (Get-Location).Path; $s.Save()"
+powershell -NoProfile -Command "$w = New-Object -ComObject WScript.Shell; $s = $w.CreateShortcut([IO.Path]::Combine([Environment]::GetFolderPath('Desktop'), 'RI ERP.lnk')); $s.TargetPath = [IO.Path]::Combine((Get-Location).Path, 'run-windows.cmd'); $s.WorkingDirectory = (Get-Location).Path; $s.IconLocation = [IO.Path]::Combine((Get-Location).Path, 'assets\erp.ico'); $s.Save()"
 if errorlevel 1 (
  echo Shortcut creation failed. You can still use run-windows.cmd.
 )
