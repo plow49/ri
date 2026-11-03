@@ -1,4 +1,4 @@
-RI ERP 0.3 — Windows 로컬 설치 패키지
+M의 프로그램 0.5 — Windows 로컬 설치 패키지
 
 Oracle 서버나 Golden7 없이 SQLite로 실행합니다.
 대상: Windows 10/11, 단일 사용자 개발용. 독립 실행 EXE는 아닙니다.
@@ -12,7 +12,7 @@ Oracle 서버나 Golden7 없이 SQLite로 실행합니다.
    winget이 없으면 python.org에서 Python 3.12를 직접 설치해야 합니다.
    Python Launcher와 Tcl/Tk 구성요소를 포함하세요.
 4. 의존성 설치, 업무 테스트, Windows GUI 생성 검사가 진행됩니다.
-5. 바탕화면의 RI ERP 또는 run-windows.cmd를 실행하세요.
+5. 바탕화면의 M의 프로그램 또는 run-windows.cmd를 실행하세요.
 
 최초 설치에는 인터넷 연결이 필요합니다. 설치 후 로컬 업무는 인터넷 없이 사용합니다.
 바로가기는 압축 해제 폴더를 참조하므로 설치 후 폴더를 이동하지 마세요.

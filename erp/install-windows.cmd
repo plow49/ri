@@ -25,11 +25,11 @@ if errorlevel 1 goto failure
 if errorlevel 1 goto failure
 .venv\Scripts\python.exe -c "import tkinter; r=tkinter.Tk(); r.withdraw(); r.destroy()"
 if errorlevel 1 goto failure
-powershell -NoProfile -Command "$w = New-Object -ComObject WScript.Shell; $s = $w.CreateShortcut([IO.Path]::Combine([Environment]::GetFolderPath('Desktop'), 'RI ERP.lnk')); $s.TargetPath = [IO.Path]::Combine((Get-Location).Path, 'run-windows.cmd'); $s.WorkingDirectory = (Get-Location).Path; $s.IconLocation = [IO.Path]::Combine((Get-Location).Path, 'assets\erp.ico'); $s.Save()"
+powershell -NoProfile -Command "$w = New-Object -ComObject WScript.Shell; $s = $w.CreateShortcut([IO.Path]::Combine([Environment]::GetFolderPath('Desktop'), ('M' + [char]0xC758 + ' ' + [char]0xD504 + [char]0xB85C + [char]0xADF8 + [char]0xB7A8 + '.lnk'))); $s.TargetPath = [IO.Path]::Combine((Get-Location).Path, 'run-windows.cmd'); $s.WorkingDirectory = (Get-Location).Path; $s.IconLocation = [IO.Path]::Combine((Get-Location).Path, 'assets\erp.ico'); $s.Save()"
 if errorlevel 1 (
  echo Shortcut creation failed. You can still use run-windows.cmd.
 )
-echo Installation completed. Open the RI ERP desktop shortcut or run-windows.cmd.
+echo Installation completed. Open the new desktop shortcut or run-windows.cmd.
 pause
 exit /b 0
 :failure

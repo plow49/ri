@@ -7,7 +7,7 @@ from core import ERP, Item, Purchase, Movement, Journal, Record, Sale, Inspectio
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title('RI ERP · 개발용 시제품')
+        self.title('M의 프로그램')
         self.geometry('1280x780')
         self.minsize(1100,650)
         self.configure(background='#f1f5f9')
@@ -33,7 +33,7 @@ class App(tk.Tk):
         header=tk.Frame(self,bg='#112035');header.pack(fill='x')
         tk.Label(header,image=self.brand_icon,bg='#112035').pack(side='left',padx=(20,12),pady=18)
         titles=tk.Frame(header,bg='#112035');titles.pack(side='left')
-        tk.Label(titles,text='RI  /  INVENTORY ERP',font=(family,19,'bold'),fg='white',bg='#112035').pack(anchor='w')
+        tk.Label(titles,text='M의 프로그램',font=(family,19,'bold'),fg='white',bg='#112035').pack(anchor='w')
         tk.Label(titles,text='물품 · 구매 · 업무 관리',font=(family,10),fg='#98b4c9',bg='#112035').pack(anchor='w',pady=(4,0))
         tk.Label(header,text='KRW  ·  부가세 별도',fg='#b8d4dd',bg='#112035').pack(side='right',padx=24)
         tabs=ttk.Notebook(self); tabs.pack(fill='both',expand=True,padx=20,pady=(18,0))
