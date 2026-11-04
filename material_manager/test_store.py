@@ -39,3 +39,27 @@ class SummaryTests(unittest.TestCase):
    with self.assertRaises(ValueError):s.set_total('키보드',value)
   s.set_total('키보드',0)
   self.assertEqual(s.summary()[0][-1],-2)
+
+class DeleteTests(unittest.TestCase):
+ def setUp(self):
+  self.s=Store(':memory:');self.addCleanup(self.s.db.close)
+  self.s.set_total('모니터',10)
+  self.s.save(('모니터',3,'반출','교체','2026-11-03','김'))
+ def test_record_delete_recalculates(self):
+  self.s.delete_entry(self.s.rows()[0][0])
+  self.assertEqual(self.s.summary(),[('모니터',10,0,0,10)])
+ def test_item_delete_keeps_other_items(self):
+  self.s.set_total('키보드',5)
+  self.s.save(('키보드',1,'반입','신규','2026-11-03','이'))
+  self.s.delete_item('모니터')
+  self.assertEqual(self.s.summary(),[('키보드',5,1,0,6)])
+  self.assertEqual(len(self.s.rows()),1)
+ def test_legacy_item_and_empty_item(self):
+  self.s.save(('001',1,'반입','신규','2026-11-03','이'))
+  self.s.delete_item('001')
+  self.s.set_total('빈 물품',0);self.s.delete_item('빈 물품')
+  self.assertEqual(len(self.s.summary()),1)
+ def test_missing_deletion(self):
+  with self.assertRaises(ValueError):self.s.delete_entry(999)
+  with self.assertRaises(ValueError):self.s.delete_item('없는 물품')
+  self.assertEqual(self.s.summary(),[('모니터',10,0,3,7)])

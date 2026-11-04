@@ -41,6 +41,17 @@ class Store:
         if total<0: raise ValueError('총수량은 0 이상이어야 합니다.')
         with self.db:
             self.db.execute('INSERT INTO inventory(item,opening) VALUES(?,?) ON CONFLICT(item) DO UPDATE SET opening=excluded.opening',(item,total))
+    def delete_entry(self,ident):
+        with self.db:
+            result=self.db.execute('DELETE FROM entries WHERE id=?',(ident,))
+            if result.rowcount!=1: raise ValueError('삭제할 기록이 없습니다.')
+    def delete_item(self,item):
+        # Remove the complete item atomically, including movements that otherwise
+        # would cause it to reappear in the summary UNION query.
+        with self.db:
+            records=self.db.execute('DELETE FROM entries WHERE item=?',(item,)).rowcount
+            totals=self.db.execute('DELETE FROM inventory WHERE item=?',(item,)).rowcount
+            if not records and not totals: raise ValueError('삭제할 물품이 없습니다.')
     def summary(self):
         return self.db.execute("""SELECT names.item, i.opening,
           COALESCE(SUM(CASE WHEN e.direction='반입' THEN e.qty ELSE 0 END),0),
@@ -53,7 +64,7 @@ class Store:
 
 class App(tk.Tk):
     def __init__(self):
-        super().__init__();self.title('M_물품관리');self.geometry('1150x850');self.minsize(950,700)
+        super().__init__();self.title('M_물품관리 · 삭제 기능 테스트 버전');self.geometry('1150x850');self.minsize(950,700)
         self.brand_icon=tk.PhotoImage(file=str(ROOT/'assets'/'inventory.png'))
         self.iconphoto(True,self.brand_icon)
         if self.tk.call('tk','windowingsystem')=='win32': self.iconbitmap(str(ROOT/'assets'/'inventory.ico'))
@@ -71,7 +82,9 @@ class App(tk.Tk):
         tk.Label(header,text='물품 반출 · 반입 기록',bg='#112035',fg='#a5c8d3').pack(anchor='w',padx=24,pady=(0,20))
         totals=ttk.LabelFrame(self,text='물품별 수량 현황',padding=12)
         totals.pack(fill='x',padx=24,pady=(16,0))
-        ttk.Button(totals,text='물품 총수량 입력 / 수정',command=self.total_editor).pack(anchor='w',pady=(0,8))
+        total_buttons=ttk.Frame(totals);total_buttons.pack(fill='x',pady=(0,8))
+        ttk.Button(total_buttons,text='물품 총수량 입력 / 수정',command=self.total_editor).pack(side='left')
+        ttk.Button(total_buttons,text='선택 물품 삭제',command=self.delete_item).pack(side='left',padx=10)
         ttk.Label(totals,text='현재 수량 = 기준 총수량 + 기록된 반입 − 기록된 반출 (같은 물품명끼리 합산)').pack(anchor='w',pady=(0,8))
         grid=ttk.Frame(totals);grid.pack(fill='x')
         self.summary_table=ttk.Treeview(grid,columns=('item','total','in','out','current'),show='headings',height=4,selectmode='browse')
@@ -85,6 +98,7 @@ class App(tk.Tk):
         bar=ttk.Frame(self);bar.pack(fill='x',padx=24,pady=16)
         ttk.Button(bar,text='＋ 항목 추가',command=self.add).pack(side='left')
         ttk.Button(bar,text='선택 항목 수정',command=self.edit).pack(side='left',padx=10)
+        ttk.Button(bar,text='선택 기록 삭제',command=self.delete_entry).pack(side='left')
         ttk.Label(bar,text='행을 선택한 뒤 수정하거나 더블클릭하세요.').pack(side='left',padx=12)
         body=ttk.Frame(self);body.pack(fill='both',expand=True,padx=24)
         columns=('id','item','qty','direction','reason','day','person')
@@ -108,6 +122,29 @@ class App(tk.Tk):
         for row in summaries:
             self.summary_table.insert('', 'end',values=[v if v is not None else '미입력' for v in row],tags=('warning',) if row[4] is not None and row[4]<0 else ())
         self.status.config(text=f'물품 {len(summaries)}종 · 반출/반입 기록 {len(rows)}건 · 이 컴퓨터에 자동 저장됩니다')
+    def delete_entry(self):
+        selected=self.table.selection()
+        if not selected:
+            messagebox.showinfo('기록 선택','삭제할 반출·반입 기록을 선택하세요.',parent=self);return
+        ident=int(selected[0])
+        row=next((r for r in self.store.rows() if r[0]==ident),None)
+        if row is None: self.refresh();return
+        if not messagebox.askyesno('기록 삭제 확인',f'{row[1]} · {row[2]}개 · {row[3]} · {row[5]} · {row[6]}\n\n이 기록 1건을 삭제할까요? 현재 수량이 다시 계산됩니다.\n삭제 후 되돌릴 수 없습니다.',parent=self,icon='warning',default='no'):return
+        try:self.store.delete_entry(ident)
+        except (ValueError,sqlite3.Error) as exc:messagebox.showerror('삭제 실패',str(exc),parent=self);return
+        self.refresh()
+    def delete_item(self):
+        selected=self.summary_table.selection()
+        if not selected:
+            messagebox.showinfo('물품 선택','수량 현황에서 삭제할 물품을 선택하세요.',parent=self);return
+        # Resolve from raw rows so numeric-looking item names keep leading zeros.
+        index=self.summary_table.index(selected[0])
+        item=self.store.summary()[index][0]
+        count=sum(1 for row in self.store.rows() if row[1]==item)
+        if not messagebox.askyesno('물품 전체 삭제 확인',f'물품: {item}\n\n기준 총수량과 이 물품의 반출·반입 기록 {count}건을 모두 삭제합니다.\n삭제 후 되돌릴 수 없습니다. 계속할까요?',parent=self,icon='warning',default='no'):return
+        try:self.store.delete_item(item)
+        except (ValueError,sqlite3.Error) as exc:messagebox.showerror('삭제 실패',str(exc),parent=self);return
+        self.refresh()
     def total_editor(self):
         selected=self.summary_table.selection()
         current=self.summary_table.item(selected[0])['values'] if selected else None
