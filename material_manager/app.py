@@ -4,6 +4,9 @@ from datetime import date
 import sqlite3
 import sys
 import tempfile
+import threading
+import queue
+import updater
 import tkinter as tk
 from tkinter import ttk, messagebox, font, simpledialog
 
@@ -111,6 +114,54 @@ class App(tk.Tk):
         self.table.bind('<Double-1>',lambda e:self.edit())
         self.status=ttk.Label(self);self.status.pack(anchor='w',padx=24,pady=14)
         self.protocol('WM_DELETE_WINDOW',self.close);self.refresh()
+        ttk.Button(self,text='업데이트 확인',command=lambda:self.check_update(True)).pack(pady=(0,10))
+        self.update_busy=False
+        if getattr(sys,'frozen',False) and '--smoke-test' not in sys.argv:self.after(1500,self.check_update)
+    def check_update(self,manual=False):
+        if self.update_busy:return
+        if not getattr(sys,'frozen',False):
+            if manual:messagebox.showinfo('업데이트','Windows EXE 버전에서 사용할 수 있습니다.',parent=self)
+            return
+        self.update_busy=True
+        messages=queue.Queue()
+        def work():
+            try:messages.put(('ok',updater.latest()))
+            except Exception:messages.put(('error',None))
+        threading.Thread(target=work,daemon=True).start()
+        def poll():
+            try:kind,info=messages.get_nowait()
+            except queue.Empty:self.after(150,poll);return
+            self.update_busy=False
+            if kind=='error':
+                if manual:messagebox.showinfo('업데이트','업데이트 서버를 확인할 수 없습니다. 기존 버전을 계속 사용할 수 있습니다.',parent=self)
+                return
+            if info is None:
+                if manual:messagebox.showinfo('업데이트','현재 받을 수 있는 새 정식 버전이 없습니다.',parent=self)
+                return
+            if messagebox.askyesno('업데이트',f'{info[0]} 버전이 있습니다. 지금 업데이트할까요?\n완료 후 프로그램이 다시 시작됩니다.',parent=self,default='no'):
+                self.fetch_update(info)
+        self.after(150,poll)
+    def fetch_update(self,info):
+        self.update_busy=True;messages=queue.Queue()
+        self.status.config(text='업데이트 다운로드 중…')
+        def work():
+            try:messages.put((updater.download(info),None))
+            except Exception as exc:messages.put((None,str(exc)))
+        threading.Thread(target=work,daemon=True).start()
+        def poll():
+            try:candidate,error=messages.get_nowait()
+            except queue.Empty:self.after(150,poll);return
+            self.update_busy=False
+            if error:
+                self.refresh();messagebox.showerror('업데이트 실패',error,parent=self);return
+            try:
+                # SQLite backup is consistent even if other connections exist.
+                with sqlite3.connect(DATA_ROOT/'materials.before-update.db') as backup:self.store.db.backup(backup)
+                updater.launch(candidate)
+            except Exception as exc:
+                self.refresh();messagebox.showerror('업데이트 실패',str(exc),parent=self);return
+            self.close()
+        self.after(150,poll)
     def close(self):self.store.db.close();self.destroy()
     def refresh(self,selected=None):
         self.table.delete(*self.table.get_children());rows=self.store.rows()
@@ -213,7 +264,11 @@ def smoke_test():
         finally: app.close()
 
 if __name__=='__main__':
-    if '--smoke-test' in sys.argv:
+    if len(sys.argv)==4 and sys.argv[1]=='--apply-update':
+        try:updater.apply_update(sys.argv[2],sys.argv[3])
+        except Exception as exc:
+            root=tk.Tk();root.withdraw();messagebox.showerror('업데이트 실패',str(exc));root.destroy();sys.exit(1)
+    elif '--smoke-test' in sys.argv:
         try: smoke_test()
         except Exception:
             import traceback
