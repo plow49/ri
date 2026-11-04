@@ -31,3 +31,11 @@ CMD 자체 아이콘은 Windows 기본 아이콘입니다. 사용자 지정 아�
 
 ## 1.3 M 아이콘
 프로그램 창과 물품관리 바로가기의 아이콘을 남색 배경·청록색 M 이미지로 변경했습니다. 설치 스크립트를 다시 실행하면 바로가기가 갱신됩니다.
+
+## Windows EXE 빌드
+GitHub Actions의 Build M Materials Windows EXE 작업이 물품관리.exe를 생성합니다.
+완료된 실행의 Artifacts에서 M-Materials-Windows-EXE를 다운로드하세요(GitHub 로그인 필요).
+EXE 자체에 M 아이콘을 포함하며 Python 설치가 필요 없습니다.
+데이터는 EXE 옆 materials.db에 저장됩니다. 기존 데이터 사용 시 프로그램 종료 후 백업·복사하세요.
+Windows 작업은 기존 테스트와 패키징된 EXE의 Tk/아이콘/SQLite 스모크 검사를 실행합니다.
+실제 성공 여부는 해당 Actions 실행 결과로 확인해야 합니다. 코드 서명은 적용하지 않습니다.

@@ -1,2 +1,6 @@
 __pycache__/
 *.db
+build/
+dist/
+*.spec
+smoke-error.txt

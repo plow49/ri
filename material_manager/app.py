@@ -2,10 +2,13 @@
 from pathlib import Path
 from datetime import date
 import sqlite3
+import sys
+import tempfile
 import tkinter as tk
 from tkinter import ttk, messagebox, font, simpledialog
 
 ROOT=Path(__file__).resolve().parent
+DATA_ROOT=Path(sys.executable).resolve().parent if getattr(sys,'frozen',False) else ROOT
 
 class Store:
     def __init__(self,path):
@@ -54,7 +57,7 @@ class App(tk.Tk):
         self.brand_icon=tk.PhotoImage(file=str(ROOT/'assets'/'inventory.png'))
         self.iconphoto(True,self.brand_icon)
         if self.tk.call('tk','windowingsystem')=='win32': self.iconbitmap(str(ROOT/'assets'/'inventory.ico'))
-        self.store=Store(ROOT/'materials.db')
+        self.store=Store(DATA_ROOT/'materials.db')
         family='Malgun Gothic' if 'Malgun Gothic' in font.families() else 'DejaVu Sans'
         self.option_add('*Font',(family,11))
         style=ttk.Style(self);style.theme_use('clam')
@@ -158,4 +161,26 @@ class App(tk.Tk):
         ttk.Button(buttons,text='수정 저장' if row else '추가 저장',command=save).pack(side='left')
         dialog.bind('<Escape>',lambda e:dialog.destroy());dialog.grab_set();first.focus_set()
 
-if __name__=='__main__':App().mainloop()
+def smoke_test():
+    # Packaged executable check: embedded icons, Tk, and SQLite without user data.
+    global DATA_ROOT
+    with tempfile.TemporaryDirectory() as folder:
+        DATA_ROOT=Path(folder)
+        app=App()
+        try:
+            app.withdraw()
+            app.store.set_total('검증 물품',10)
+            app.store.save(('검증 물품',2,'반출','교체','2026-11-04','검증'))
+            app.refresh();app.update()
+            if app.store.summary()[0][-1]!=8: raise RuntimeError('Inventory check failed')
+        finally: app.close()
+
+if __name__=='__main__':
+    if '--smoke-test' in sys.argv:
+        try: smoke_test()
+        except Exception:
+            import traceback
+            Path('smoke-error.txt').write_text(traceback.format_exc(),encoding='utf-8')
+            sys.exit(1)
+    else: App().mainloop()
+
