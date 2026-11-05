@@ -1,4 +1,5 @@
 """Persistent per-user data, with verified migration of the legacy database."""
+from contextlib import closing
 import os
 import sqlite3
 from pathlib import Path
@@ -15,7 +16,7 @@ def migrate(legacy,destination):
     if target.exists() or not legacy.exists() or legacy.resolve()==target.resolve():return target
     staging=destination/'materials.migrating.db'
     try:
-        with sqlite3.connect(legacy) as source,sqlite3.connect(staging) as output:
+        with closing(sqlite3.connect(legacy)) as source,closing(sqlite3.connect(staging)) as output:
             source.backup(output)
             if output.execute('PRAGMA integrity_check').fetchone()!=('ok',):
                 raise RuntimeError('기존 데이터 검증에 실패했습니다.')

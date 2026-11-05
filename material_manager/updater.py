@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 
-VERSION='1.4.1'
+VERSION='1.4.2'
 API='https://api.github.com/repos/plow49/ri/releases/latest'
 
 def version(value):
