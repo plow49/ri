@@ -7,7 +7,7 @@ class StoreTests(unittest.TestCase):
   self.s.save(('모니터',2,'반입','신규','2026-11-03','김민수'))
   ident=self.s.rows()[0][0]
   self.s.save(('모니터',1,'반출','교체','2026-11-04','이민수'),ident)
-  self.assertEqual(self.s.rows(),[(ident,'모니터',1,'반출','교체','2026-11-04','이민수')])
+  self.assertEqual(self.s.rows(),[(ident,'모니터',1,'반출','교체','2026-11-04','이민수','')])
  def test_invalid_values(self):
   valid=['모니터','1','반입','신규','2026-11-03','김민수']
   for index,value in [(0,''),(1,'0'),(1,'1.5'),(2,'입고'),(3,'기타'),(4,'2026-02-30'),(5,'')]:
@@ -63,3 +63,11 @@ class DeleteTests(unittest.TestCase):
   with self.assertRaises(ValueError):self.s.delete_entry(999)
   with self.assertRaises(ValueError):self.s.delete_item('없는 물품')
   self.assertEqual(self.s.summary(),[('모니터',10,0,3,7)])
+
+class DestinationTests(unittest.TestCase):
+ def test_save_and_edit_destination(self):
+  s=Store(':memory:');self.addCleanup(s.db.close)
+  s.save(('모니터',1,'반출','신규','2026-11-05','김','총무팀'))
+  row=s.rows()[0];self.assertEqual(row[-1],'총무팀')
+  s.save(('모니터',1,'반출','교체','2026-11-05','김','회의실'),row[0])
+  self.assertEqual(s.rows()[0][-1],'회의실')

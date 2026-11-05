@@ -20,9 +20,13 @@ class Store:
         self.db=sqlite3.connect(path)
         self.db.execute('CREATE TABLE IF NOT EXISTS entries (id INTEGER PRIMARY KEY, item TEXT NOT NULL, qty INTEGER NOT NULL CHECK(qty>0), direction TEXT NOT NULL, reason TEXT NOT NULL, day TEXT NOT NULL, person TEXT NOT NULL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS inventory (item TEXT PRIMARY KEY, opening INTEGER NOT NULL CHECK(opening>=0))')
+        if 'destination' not in [r[1] for r in self.db.execute('PRAGMA table_info(entries)')]:
+            self.db.execute("ALTER TABLE entries ADD COLUMN destination TEXT NOT NULL DEFAULT ''")
         self.db.commit()
     def save(self,values,ident=None):
-        item,qty,direction,reason,day,person=(str(v).strip() for v in values)
+        values=list(values)
+        if len(values)==6:values.append('')
+        item,qty,direction,reason,day,person,destination=(str(v).strip() for v in values)
         if not item or not person: raise ValueError('물품명과 이름을 입력하세요.')
         try: qty=int(qty)
         except ValueError: raise ValueError('수량은 정수로 입력하세요.') from None
@@ -32,11 +36,11 @@ class Store:
             parsed=date.fromisoformat(day)
             if parsed.isoformat()!=day: raise ValueError()
         except ValueError: raise ValueError('날짜는 YYYY-MM-DD 형식의 유효한 날짜여야 합니다.') from None
-        args=(item,qty,direction,reason,day,person)
+        args=(item,qty,direction,reason,day,person,destination)
         with self.db:
-            if ident is None:self.db.execute('INSERT INTO entries(item,qty,direction,reason,day,person) VALUES(?,?,?,?,?,?)',args)
+            if ident is None:self.db.execute('INSERT INTO entries(item,qty,direction,reason,day,person,destination) VALUES(?,?,?,?,?,?,?)',args)
             else:
-                c=self.db.execute('UPDATE entries SET item=?,qty=?,direction=?,reason=?,day=?,person=? WHERE id=?',args+(ident,))
+                c=self.db.execute('UPDATE entries SET item=?,qty=?,direction=?,reason=?,day=?,person=?,destination=? WHERE id=?',args+(ident,))
                 if c.rowcount!=1:raise ValueError('수정할 항목을 찾지 못했습니다.')
     def set_total(self,item,total):
         item=str(item).strip()
@@ -65,11 +69,11 @@ class Store:
           FROM (SELECT item FROM inventory UNION SELECT item FROM entries) names
           LEFT JOIN inventory i ON i.item=names.item LEFT JOIN entries e ON e.item=names.item
           GROUP BY names.item,i.opening ORDER BY names.item""").fetchall()
-    def rows(self):return self.db.execute('SELECT id,item,qty,direction,reason,day,person FROM entries ORDER BY id DESC').fetchall()
+    def rows(self):return self.db.execute('SELECT id,item,qty,direction,reason,day,person,destination FROM entries ORDER BY id DESC').fetchall()
 
 class App(tk.Tk):
     def __init__(self):
-        super().__init__();self.title('M_물품관리');self.geometry('1150x850');self.minsize(950,700)
+        super().__init__();self.title('M_물품관리');self.geometry('1150x780');self.minsize(640,480)
         self.brand_icon=tk.PhotoImage(file=str(ROOT/'assets'/'inventory.png'))
         self.iconphoto(True,self.brand_icon)
         if self.tk.call('tk','windowingsystem')=='win32': self.iconbitmap(str(ROOT/'assets'/'inventory.ico'))
@@ -86,10 +90,23 @@ class App(tk.Tk):
         style.configure('Treeview.Heading',font=(family,11,'bold'),padding=12)
         style.map('Treeview',background=[('selected','#0f766e')],foreground=[('selected','white')])
         self.configure(bg='#f1f5f9')
-        header=tk.Frame(self,bg='#112035');header.pack(fill='x')
+        viewport=ttk.Frame(self);viewport.pack(fill='both',expand=True)
+        canvas=tk.Canvas(viewport,highlightthickness=0,bg='#f1f5f9')
+        vertical=ttk.Scrollbar(viewport,orient='vertical',command=canvas.yview)
+        horizontal=ttk.Scrollbar(viewport,orient='horizontal',command=canvas.xview)
+        viewport.rowconfigure(0,weight=1);viewport.columnconfigure(0,weight=1)
+        canvas.grid(row=0,column=0,sticky='nsew');vertical.grid(row=0,column=1,sticky='ns');horizontal.grid(row=1,column=0,sticky='ew')
+        canvas.configure(yscrollcommand=vertical.set,xscrollcommand=horizontal.set)
+        content=ttk.Frame(canvas)
+        window=canvas.create_window((0,0),window=content,anchor='nw')
+        def resize(event=None):
+            canvas.itemconfigure(window,width=max(1120,canvas.winfo_width()),height=max(content.winfo_reqheight(),canvas.winfo_height()))
+            canvas.configure(scrollregion=canvas.bbox('all'))
+        canvas.bind('<Configure>',resize);content.bind('<Configure>',lambda e:canvas.configure(scrollregion=canvas.bbox('all')))
+        header=tk.Frame(content,bg='#112035');header.pack(fill='x')
         tk.Label(header,text='M_물품관리',font=(family,23,'bold'),bg='#112035',fg='white').pack(anchor='w',padx=24,pady=(20,6))
         tk.Label(header,text='물품 반출 · 반입 기록',bg='#112035',fg='#a5c8d3').pack(anchor='w',padx=24,pady=(0,20))
-        totals=ttk.LabelFrame(self,text='물품별 수량 현황',padding=12)
+        totals=ttk.LabelFrame(content,text='물품별 수량 현황',padding=12)
         totals.pack(fill='x',padx=24,pady=(16,0))
         total_buttons=ttk.Frame(totals);total_buttons.pack(fill='x',pady=(0,8))
         ttk.Button(total_buttons,text='물품 총수량 입력 / 수정',command=self.total_editor).pack(side='left')
@@ -104,24 +121,24 @@ class App(tk.Tk):
         self.summary_table.pack(fill='x')
         self.summary_table.tag_configure('warning',foreground='#b91c1c')
         self.summary_table.bind('<Double-1>',lambda e:self.total_editor())
-        bar=ttk.Frame(self);bar.pack(fill='x',padx=24,pady=16)
+        bar=ttk.Frame(content);bar.pack(fill='x',padx=24,pady=16)
         ttk.Button(bar,text='＋ 항목 추가',command=self.add).pack(side='left')
         ttk.Button(bar,text='선택 항목 수정',command=self.edit).pack(side='left',padx=10)
         ttk.Button(bar,text='선택 기록 삭제',command=self.delete_entry).pack(side='left')
         ttk.Label(bar,text='행을 선택한 뒤 수정하거나 더블클릭하세요.').pack(side='left',padx=12)
-        body=ttk.Frame(self);body.pack(fill='both',expand=True,padx=24)
-        columns=('id','item','qty','direction','reason','day','person')
-        self.table=ttk.Treeview(body,columns=columns,show='headings',selectmode='browse')
-        for c,label,width in zip(columns,('번호','물품명','수량','반출 / 반입','사유','날짜','이름'),(60,240,70,120,100,140,140)):
+        body=ttk.Frame(content);body.pack(fill='both',expand=True,padx=24)
+        columns=('id','item','qty','direction','reason','day','person','destination')
+        self.table=ttk.Treeview(body,columns=columns,show='headings',selectmode='browse',height=6)
+        for c,label,width in zip(columns,('번호','물품명','수량','반출 / 반입','사유','날짜','이름','반출처'),(50,180,60,100,80,120,110,160)):
             self.table.heading(c,text=label);self.table.column(c,width=width,minwidth=55,anchor='w' if c=='item' else 'center')
         scroll=ttk.Scrollbar(body,orient='vertical',command=self.table.yview);scroll.pack(side='right',fill='y')
         self.table.configure(yscrollcommand=scroll.set);self.table.pack(fill='both',expand=True)
         self.table.tag_configure('alternate',background='#edf5f7')
         self.table.bind('<Double-1>',lambda e:self.edit())
-        ttk.Label(self,text=f'버전 {updater.VERSION}').pack(anchor='e',padx=24,pady=(6,0))
+        ttk.Label(content,text=f'버전 {updater.VERSION}').pack(anchor='e',padx=24,pady=(6,0))
         self.status=ttk.Label(self);self.status.pack(anchor='w',padx=24,pady=14)
         self.protocol('WM_DELETE_WINDOW',self.close);self.refresh()
-        ttk.Button(self,text='업데이트 확인',command=lambda:self.check_update(True)).pack(pady=(0,10))
+        ttk.Button(content,text='업데이트 확인',command=lambda:self.check_update(True)).pack(pady=(0,10))
         self.update_busy=False
         if getattr(sys,'frozen',False) and '--smoke-test' not in sys.argv:self.after(1500,self.check_update)
     def check_update(self,manual=False):
@@ -237,10 +254,10 @@ class App(tk.Tk):
     def editor(self,row=None):
         dialog=tk.Toplevel(self);dialog.title('항목 수정' if row else '항목 추가');dialog.transient(self);dialog.resizable(False,False)
         frame=ttk.Frame(dialog,padding=24);frame.pack(fill='both',expand=True)
-        defaults=row[1:] if row else ('','1','반입','신규',date.today().isoformat(),'')
+        defaults=row[1:] if row else ('','1','반입','신규',date.today().isoformat(),'','')
         variables=[]
         first=None
-        for n,(label,value) in enumerate(zip(('물품명','수량','반출 / 반입','사유','날짜 (YYYY-MM-DD)','이름'),defaults)):
+        for n,(label,value) in enumerate(zip(('물품명','수량','반출 / 반입','사유','날짜 (YYYY-MM-DD)','이름','반출처 (부서/장소)'),defaults)):
             ttk.Label(frame,text=label).grid(row=n,column=0,sticky='w',padx=(0,20),pady=8)
             var=tk.StringVar(value=str(value));variables.append(var)
             choices={2:('반출','반입'),3:('교체','신규')}
@@ -251,7 +268,7 @@ class App(tk.Tk):
             try:self.store.save([v.get() for v in variables],row[0] if row else None)
             except (ValueError,sqlite3.Error) as exc:messagebox.showerror('저장 실패',str(exc),parent=dialog);return
             self.refresh(row[0] if row else None);dialog.destroy()
-        buttons=ttk.Frame(frame);buttons.grid(row=6,column=0,columnspan=2,sticky='e',pady=(18,0))
+        buttons=ttk.Frame(frame);buttons.grid(row=7,column=0,columnspan=2,sticky='e',pady=(18,0))
         ttk.Button(buttons,text='취소',command=dialog.destroy).pack(side='left',padx=8)
         ttk.Button(buttons,text='수정 저장' if row else '추가 저장',command=save).pack(side='left')
         dialog.bind('<Escape>',lambda e:dialog.destroy());dialog.grab_set();first.focus_set()
@@ -267,6 +284,9 @@ def smoke_test():
             app.store.set_total('검증 물품',10)
             app.store.save(('검증 물품',2,'반출','교체','2026-11-04','검증'))
             app.refresh();app.update()
+            for size in ('640x480','1280x900'):
+                app.geometry(size);app.update()
+                if 'destination' not in app.table['columns']:raise RuntimeError('Missing destination column')
             if app.store.summary()[0][-1]!=8: raise RuntimeError('Inventory check failed')
         finally: app.close()
 
