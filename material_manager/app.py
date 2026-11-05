@@ -7,11 +7,13 @@ import tempfile
 import threading
 import queue
 import updater
+import storage
 import tkinter as tk
 from tkinter import ttk, messagebox, font, simpledialog
 
 ROOT=Path(__file__).resolve().parent
-DATA_ROOT=Path(sys.executable).resolve().parent if getattr(sys,'frozen',False) else ROOT
+LEGACY_ROOT=Path(sys.executable).resolve().parent if getattr(sys,'frozen',False) else ROOT
+DATA_ROOT=storage.data_directory() if getattr(sys,'frozen',False) else ROOT
 
 class Store:
     def __init__(self,path):
@@ -71,6 +73,9 @@ class App(tk.Tk):
         self.brand_icon=tk.PhotoImage(file=str(ROOT/'assets'/'inventory.png'))
         self.iconphoto(True,self.brand_icon)
         if self.tk.call('tk','windowingsystem')=='win32': self.iconbitmap(str(ROOT/'assets'/'inventory.ico'))
+        DATA_ROOT.mkdir(parents=True,exist_ok=True)
+        if '--smoke-test' not in sys.argv and getattr(sys,'frozen',False):
+            storage.migrate(LEGACY_ROOT/'materials.db',DATA_ROOT)
         self.store=Store(DATA_ROOT/'materials.db')
         family='Malgun Gothic' if 'Malgun Gothic' in font.families() else 'DejaVu Sans'
         self.option_add('*Font',(family,11))
