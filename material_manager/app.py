@@ -136,9 +136,33 @@ class App(tk.Tk):
         self.table.tag_configure('alternate',background='#edf5f7')
         self.table.bind('<Double-1>',lambda e:self.edit())
         ttk.Label(content,text=f'버전 {updater.VERSION}').pack(anchor='e',padx=24,pady=(6,0))
-        self.status=ttk.Label(self);self.status.pack(anchor='w',padx=24,pady=14)
+        self.status=ttk.Label(content);self.status.pack(anchor='w',padx=24,pady=14)
         self.protocol('WM_DELETE_WINDOW',self.close);self.refresh()
         ttk.Button(content,text='업데이트 확인',command=lambda:self.check_update(True)).pack(pady=(0,10))
+        self.scroll_canvas=canvas
+        wheel_tag='MaterialsWheel'
+        def wheel(event):
+            if getattr(event,'num',None)==4:units=-3
+            elif getattr(event,'num',None)==5:units=3
+            else:
+                delta=event.delta
+                if not delta:return 'break'
+                units=-max(1,abs(int(delta/120)))*3 if delta>0 else max(1,abs(int(delta/120)))*3
+            horizontal=bool(event.state & 0x0001)
+            target=event.widget
+            if not horizontal and target in (self.table,self.summary_table):
+                first,last=target.yview()
+                if (units<0 and first>0) or (units>0 and last<1):
+                    target.yview_scroll(units,'units');return 'break'
+            if horizontal:canvas.xview_scroll(units,'units')
+            else:canvas.yview_scroll(units,'units')
+            return 'break'
+        def bind_wheel(widget):
+            widget.bindtags((wheel_tag,)+widget.bindtags())
+            for child in widget.winfo_children():bind_wheel(child)
+        for event in ('<MouseWheel>','<Shift-MouseWheel>','<Button-4>','<Button-5>'):
+            self.bind_class(wheel_tag,event,wheel)
+        bind_wheel(viewport)
         self.update_busy=False
         if getattr(sys,'frozen',False) and '--smoke-test' not in sys.argv:self.after(1500,self.check_update)
     def check_update(self,manual=False):
@@ -287,6 +311,14 @@ def smoke_test():
             for size in ('640x480','1280x900'):
                 app.geometry(size);app.update()
                 if 'destination' not in app.table['columns']:raise RuntimeError('Missing destination column')
+            app.geometry('640x480');app.deiconify();app.update()
+            app.scroll_canvas.yview_moveto(0);app.update()
+            before=app.scroll_canvas.yview()[0]
+            app.scroll_canvas.event_generate('<MouseWheel>',delta=-120);app.update()
+            if app.scroll_canvas.yview()[0]<=before:raise RuntimeError('Canvas mouse wheel did not scroll')
+            for index in range(30):app.table.insert('', 'end',values=(index,'휠 검증',1,'반입','신규','','',''))
+            app.table.yview_moveto(0);app.table.event_generate('<MouseWheel>',delta=-120);app.update()
+            if app.table.yview()[0]<=0:raise RuntimeError('Table mouse wheel did not scroll')
             if app.store.summary()[0][-1]!=8: raise RuntimeError('Inventory check failed')
         finally: app.close()
 
