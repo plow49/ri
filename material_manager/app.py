@@ -67,7 +67,7 @@ class Store:
 
 class App(tk.Tk):
     def __init__(self):
-        super().__init__();self.title('M_물품관리 · 삭제 기능 테스트 버전');self.geometry('1150x850');self.minsize(950,700)
+        super().__init__();self.title('M_물품관리');self.geometry('1150x850');self.minsize(950,700)
         self.brand_icon=tk.PhotoImage(file=str(ROOT/'assets'/'inventory.png'))
         self.iconphoto(True,self.brand_icon)
         if self.tk.call('tk','windowingsystem')=='win32': self.iconbitmap(str(ROOT/'assets'/'inventory.ico'))

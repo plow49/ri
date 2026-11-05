@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main, 'preview/**']
+    tags: ['materials-v*']
     paths:
       - 'material_manager/**'
       - '.github/workflows/materials-windows.yml'
@@ -10,6 +11,8 @@ permissions:
   contents: read
 jobs:
   windows-exe:
+    # Do not run potentially billable private-repository builds without approval.
+    if: github.event.repository.private == false
     runs-on: windows-latest
     timeout-minutes: 15
     defaults:
@@ -46,10 +49,30 @@ jobs:
           Get-FileHash 'dist/물품관리.exe' -Algorithm SHA256 | Format-List | Out-File -Encoding utf8 dist/SHA256.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: M-Materials-Windows-DELETE-PREVIEW
+          name: M-Materials-Windows-EXE
           path: |
             material_manager/dist/물품관리.exe
             material_manager/dist/EXE-사용방법.txt
             material_manager/dist/SHA256.txt
           if-no-files-found: error
           retention-days: 30
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/materials-v') && github.event.repository.private == false
+    needs: windows-exe
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: M-Materials-Windows-EXE
+          path: release-files
+      - name: Publish verified executable
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          cp 'release-files/물품관리.exe' release-files/M-Materials.exe
+          gh release create "$RELEASE_TAG" release-files/M-Materials.exe release-files/EXE-사용방법.txt release-files/SHA256.txt --verify-tag --title "M_물품관리 $RELEASE_TAG" --notes '물품별 수량, 삭제 확인, M 아이콘, 사용자 승인 기반 업데이트 기능. 기존 DB를 백업한 후 EXE를 교체하세요.'
