@@ -59,3 +59,9 @@ Windows EXE 데이터와 업데이트 전 DB 백업은 %LOCALAPPDATA%\M_Material
 기존 EXE 옆 materials.db는 새 DB가 없을 때 SQLite 백업 API로 복사·무결성 검사 후 옮깁니다.
 복구 사본 materials.migration-backup.db를 새 폴더에 보관합니다. 새 DB가 있으면 기존 파일은 건드리지 않습니다.
 소스 실행은 개발용으로 기존 경로를 유지합니다.
+
+## 1.4.3 실행 폴더 정리와 버전 표시
+EXE와 CMD 모두 사용자 데이터 폴더를 사용합니다. 업데이트 백업 EXE도 해당 폴더의 backups에 저장합니다.
+기존 실행 폴더의 materials.db는 이전하며, 새 DB가 이미 있으면 별도 legacy 복구 사본으로 보관합니다(자동 병합하지 않음).
+기존 materials.before-update.db와 현재 EXE 이름의 .previous.exe도 검증 후 사용자 데이터 폴더로 옮깁니다.
+하단에 버전 1.4.3을 표시합니다. 데이터 파일 자체는 기록 보존을 위해 사용자 데이터 폴더에 계속 존재합니다.

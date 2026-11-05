@@ -15,8 +15,11 @@ class MigrationTests(unittest.TestCase):
    db.close()
    self.assertFalse(old.exists());self.assertTrue((dest/'materials.migration-backup.db').exists())
    self.assertEqual(migrate(old,dest),target)
- def test_existing_target_untouched(self):
+ def test_existing_target_preserved_and_legacy_archived(self):
   with tempfile.TemporaryDirectory() as folder:
-   root=Path(folder);old=root/'old.db';old.write_bytes(b'old');dest=root/'data';dest.mkdir();target=dest/'materials.db';target.write_bytes(b'existing')
+   root=Path(folder);old=root/'old.db';dest=root/'data';dest.mkdir();target=dest/'materials.db'
+   with sqlite3.connect(old) as db:db.execute('CREATE TABLE legacy(value TEXT)')
+   db.close();target.write_bytes(b'existing')
    migrate(old,dest)
-   self.assertEqual(target.read_bytes(),b'existing');self.assertTrue(old.exists())
+   self.assertEqual(target.read_bytes(),b'existing');self.assertFalse(old.exists())
+   self.assertEqual(len(list(dest.glob('legacy-*.db'))),1)

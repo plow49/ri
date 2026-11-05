@@ -13,7 +13,7 @@ from tkinter import ttk, messagebox, font, simpledialog
 
 ROOT=Path(__file__).resolve().parent
 LEGACY_ROOT=Path(sys.executable).resolve().parent if getattr(sys,'frozen',False) else ROOT
-DATA_ROOT=storage.data_directory() if getattr(sys,'frozen',False) else ROOT
+DATA_ROOT=storage.data_directory()
 
 class Store:
     def __init__(self,path):
@@ -74,8 +74,9 @@ class App(tk.Tk):
         self.iconphoto(True,self.brand_icon)
         if self.tk.call('tk','windowingsystem')=='win32': self.iconbitmap(str(ROOT/'assets'/'inventory.ico'))
         DATA_ROOT.mkdir(parents=True,exist_ok=True)
-        if '--smoke-test' not in sys.argv and getattr(sys,'frozen',False):
+        if '--smoke-test' not in sys.argv:
             storage.migrate(LEGACY_ROOT/'materials.db',DATA_ROOT)
+            storage.archive_old_files(LEGACY_ROOT,DATA_ROOT,sys.executable if getattr(sys,'frozen',False) else None)
         self.store=Store(DATA_ROOT/'materials.db')
         family='Malgun Gothic' if 'Malgun Gothic' in font.families() else 'DejaVu Sans'
         self.option_add('*Font',(family,11))
@@ -117,6 +118,7 @@ class App(tk.Tk):
         self.table.configure(yscrollcommand=scroll.set);self.table.pack(fill='both',expand=True)
         self.table.tag_configure('alternate',background='#edf5f7')
         self.table.bind('<Double-1>',lambda e:self.edit())
+        ttk.Label(self,text=f'버전 {updater.VERSION}').pack(anchor='e',padx=24,pady=(6,0))
         self.status=ttk.Label(self);self.status.pack(anchor='w',padx=24,pady=14)
         self.protocol('WM_DELETE_WINDOW',self.close);self.refresh()
         ttk.Button(self,text='업데이트 확인',command=lambda:self.check_update(True)).pack(pady=(0,10))
@@ -161,7 +163,7 @@ class App(tk.Tk):
                 self.refresh();messagebox.showerror('업데이트 실패',error,parent=self);return
             try:
                 # SQLite backup is consistent even if other connections exist.
-                with sqlite3.connect(DATA_ROOT/'materials.before-update.db') as backup:self.store.db.backup(backup)
+                with __import__('contextlib').closing(sqlite3.connect(DATA_ROOT/'materials.before-update.db')) as backup:self.store.db.backup(backup)
                 updater.launch(candidate)
             except Exception as exc:
                 self.refresh();messagebox.showerror('업데이트 실패',str(exc),parent=self);return

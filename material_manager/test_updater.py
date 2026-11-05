@@ -21,3 +21,13 @@ class UpdateTests(unittest.TestCase):
  def test_checksum_mismatch(self):
   with patch('updater.urlopen',return_value=io.BytesIO(b'wrong')):
    with self.assertRaises(ValueError):updater.download(('version','https://example.com','a'*64))
+ def test_replace_keeps_backup_outside_program_folder(self):
+  import tempfile
+  from pathlib import Path
+  with tempfile.TemporaryDirectory() as folder:
+   root=Path(folder);program=root/'program';program.mkdir();target=program/'app.exe';target.write_bytes(b'old');candidate=root/'new.exe';candidate.write_bytes(b'new')
+   with patch('updater.storage.data_directory',return_value=root/'data'),patch('updater.subprocess.Popen'):
+    updater.apply_update(target,candidate)
+   self.assertEqual(target.read_bytes(),b'new')
+   self.assertEqual([p.name for p in program.iterdir()],['app.exe'])
+   self.assertEqual(next((root/'data'/'backups').iterdir()).read_bytes(),b'old')

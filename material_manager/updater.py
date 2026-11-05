@@ -1,5 +1,6 @@
 """Opt-in updates from this project's stable GitHub Releases only."""
 import hashlib
+import storage
 import json
 import re
 import shutil
@@ -11,7 +12,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 
-VERSION='1.4.2'
+VERSION='1.4.3'
 API='https://api.github.com/repos/plow49/ri/releases/latest'
 
 def version(value):
@@ -58,12 +59,13 @@ def launch(candidate):
     subprocess.Popen([str(helper),'--apply-update',str(target),str(candidate)],close_fds=True)
 
 def apply_update(target,candidate):
-    target=Path(target);candidate=Path(candidate);backup=target.with_suffix('.previous.exe')
-    # Renaming fails while Windows holds the running application open.
+    target=Path(target);candidate=Path(candidate)
+    directory=storage.data_directory()/'backups';directory.mkdir(parents=True,exist_ok=True)
+    backup=directory/('previous-'+str(time.time_ns())+'.exe')
+    shutil.copy2(target,backup)
     for attempt in range(60):
         try:
-            if backup.exists():backup.unlink()
-            target.rename(backup)
+            target.unlink()
             break
         except OSError:time.sleep(1)
     else:raise RuntimeError('프로그램이 종료되지 않아 업데이트를 취소했습니다.')
@@ -71,7 +73,6 @@ def apply_update(target,candidate):
         shutil.copy2(candidate,target)
         subprocess.Popen([str(target)],cwd=str(target.parent),close_fds=True)
     except Exception:
-        if target.exists():target.unlink()
-        backup.rename(target)
+        shutil.copy2(backup,target)
         subprocess.Popen([str(target)],cwd=str(target.parent),close_fds=True)
         raise
