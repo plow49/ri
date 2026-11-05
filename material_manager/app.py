@@ -5,6 +5,7 @@ import sqlite3
 import sys
 import tempfile
 import threading
+import time
 import queue
 import updater
 import storage
@@ -190,25 +191,48 @@ class App(tk.Tk):
                 self.fetch_update(info)
         self.after(150,poll)
     def fetch_update(self,info):
-        self.update_busy=True;messages=queue.Queue()
-        self.status.config(text='업데이트 다운로드 중…')
+        self.update_busy=True;messages=queue.Queue();started=time.monotonic()
+        dialog=tk.Toplevel(self);dialog.title('업데이트 진행');dialog.transient(self);dialog.resizable(False,False)
+        dialog.protocol('WM_DELETE_WINDOW',lambda:None)
+        frame=ttk.Frame(dialog,padding=24);frame.pack()
+        title=ttk.Label(frame,text='서버 연결 중…');title.pack(anchor='w')
+        bar=ttk.Progressbar(frame,length=400,mode='indeterminate');bar.pack(pady=14);bar.start(12)
+        timing=ttk.Label(frame,text='경과 0초 · 남은 시간 계산 중');timing.pack(anchor='w')
+        ttk.Label(frame,text='파일 확인과 데이터 백업 후 프로그램이 다시 시작됩니다.').pack(anchor='w',pady=(12,0))
+        dialog.grab_set()
+        state={'phase':'connect','size':0,'total':None}
+        def report(phase,size,total):messages.put(('progress',(phase,size,total)))
         def work():
-            try:messages.put((updater.download(info),None))
-            except Exception as exc:messages.put((None,str(exc)))
+            try:messages.put(('done',updater.download(info,report)))
+            except Exception as exc:messages.put(('error',str(exc)))
         threading.Thread(target=work,daemon=True).start()
+        def fail(error):
+            self.update_busy=False;dialog.destroy();self.refresh()
+            messagebox.showerror('업데이트 실패',str(error),parent=self)
         def poll():
-            try:candidate,error=messages.get_nowait()
-            except queue.Empty:self.after(150,poll);return
-            self.update_busy=False
-            if error:
-                self.refresh();messagebox.showerror('업데이트 실패',error,parent=self);return
-            try:
-                # SQLite backup is consistent even if other connections exist.
-                with __import__('contextlib').closing(sqlite3.connect(DATA_ROOT/'materials.before-update.db')) as backup:self.store.db.backup(backup)
-                updater.launch(candidate)
-            except Exception as exc:
-                self.refresh();messagebox.showerror('업데이트 실패',str(exc),parent=self);return
-            self.close()
+            while True:
+                try:kind,payload=messages.get_nowait()
+                except queue.Empty:break
+                if kind=='error':fail(payload);return
+                if kind=='done':
+                    bar.stop();bar.configure(mode='determinate',value=100)
+                    title.config(text='다운로드 완료 · 데이터 백업 및 재시작 준비')
+                    dialog.update_idletasks()
+                    try:
+                        with __import__('contextlib').closing(sqlite3.connect(DATA_ROOT/'materials.before-update.db')) as backup:self.store.db.backup(backup)
+                        updater.launch(payload)
+                    except Exception as exc:fail(exc);return
+                    self.close();return
+                phase,size,total=payload;state.update(phase=phase,size=size,total=total)
+            elapsed=time.monotonic()-started;total=state['total'];size=state['size']
+            if state['phase']=='verify':title.config(text='다운로드 완료 · 파일 무결성 확인 중')
+            elif total:
+                bar.stop();bar.configure(mode='determinate',value=min(100,size*100/total))
+                title.config(text=f'다운로드 {min(100,size*100/total):.0f}% · {size/1048576:.1f} / {total/1048576:.1f} MB')
+            elif state['phase']=='download':title.config(text=f'다운로드 중 · {size/1048576:.1f} MB (전체 크기 미제공)')
+            remaining=f'약 {max(0,int((total-size)*elapsed/size))}초' if total and size else '계산 중'
+            timing.config(text=f'경과 {int(elapsed)//60}분 {int(elapsed)%60}초 · 다운로드 남은 시간 {remaining}')
+            self.after(150,poll)
         self.after(150,poll)
     def close(self):self.store.db.close();self.destroy()
     def refresh(self,selected=None):

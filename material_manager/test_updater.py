@@ -31,3 +31,14 @@ class UpdateTests(unittest.TestCase):
    self.assertEqual(target.read_bytes(),b'new')
    self.assertEqual([p.name for p in program.iterdir()],['app.exe'])
    self.assertEqual(next((root/'data'/'backups').iterdir()).read_bytes(),b'old')
+ def test_download_reports_progress(self):
+  import hashlib,shutil
+  payload=b'x'*600000
+  response=io.BytesIO(payload);response.headers={'Content-Length':str(len(payload))}
+  events=[]
+  with patch('updater.urlopen',return_value=response):
+   candidate=updater.download(('version','https://example.com',hashlib.sha256(payload).hexdigest()),lambda *args:events.append(args))
+  self.addCleanup(shutil.rmtree,candidate.parent)
+  self.assertEqual(candidate.read_bytes(),payload)
+  self.assertEqual(events[0],('download',0,len(payload)))
+  self.assertEqual(events[-1],('verify',len(payload),len(payload)))

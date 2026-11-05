@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 
-VERSION='1.4.5'
+VERSION='1.4.6'
 API='https://api.github.com/repos/plow49/ri/releases/latest'
 
 def version(value):
@@ -37,16 +37,22 @@ def latest():
     if not url.startswith('https://github.com/plow49/ri/releases/download/'):raise ValueError('허용되지 않은 배포 주소')
     return release['tag_name'],url,digest.split(':')[1]
 
-def download(info):
+def download(info,progress=None):
     folder=Path(tempfile.mkdtemp(prefix='M-Materials-update-'))
     candidate=folder/'candidate.exe'
     try:
         digest=hashlib.sha256();size=0
         with urlopen(Request(info[1],headers={'User-Agent':'M-Materials-Updater'}),timeout=30) as response,candidate.open('wb') as output:
-            while chunk:=response.read(1024*1024):
+            raw=getattr(response,'headers',{}).get('Content-Length','')
+            total=int(raw) if str(raw).isdigit() and int(raw)>0 else None
+            if progress:progress('download',0,total)
+            while chunk:=response.read(256*1024):
                 size+=len(chunk)
                 if size>150*1024*1024:raise ValueError('업데이트 파일이 너무 큽니다.')
                 output.write(chunk);digest.update(chunk)
+                if progress:progress('download',size,total)
+        if total is not None and size!=total:raise ValueError('다운로드 크기가 일치하지 않습니다.')
+        if progress:progress('verify',size,total)
         if digest.hexdigest().lower()!=info[2].lower():raise ValueError('업데이트 파일 무결성 검증 실패')
         return candidate
     except Exception:
