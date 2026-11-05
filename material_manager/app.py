@@ -357,5 +357,9 @@ if __name__=='__main__':
             import traceback
             Path('smoke-error.txt').write_text(traceback.format_exc(),encoding='utf-8')
             sys.exit(1)
-    else: App().mainloop()
-
+    else:
+        from instance import InstanceLock
+        instance_lock=InstanceLock()
+        if instance_lock.acquire():
+            try:App().mainloop()
+            finally:instance_lock.release()

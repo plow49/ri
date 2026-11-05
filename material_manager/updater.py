@@ -1,5 +1,6 @@
 """Opt-in updates from this project's stable GitHub Releases only."""
 import hashlib
+import os
 import storage
 import json
 import re
@@ -12,7 +13,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 
-VERSION='1.4.6'
+VERSION='1.4.7'
 API='https://api.github.com/repos/plow49/ri/releases/latest'
 
 def version(value):
@@ -58,13 +59,26 @@ def download(info,progress=None):
     except Exception:
         shutil.rmtree(folder,ignore_errors=True);raise
 
+def child_environment():
+    environment=os.environ.copy()
+    environment['PYINSTALLER_RESET_ENVIRONMENT']='1'
+    return environment
+
 def launch(candidate):
     target=Path(sys.executable).resolve()
     helper=candidate.parent/'update-helper.exe'
     shutil.copy2(target,helper)
-    subprocess.Popen([str(helper),'--apply-update',str(target),str(candidate)],close_fds=True)
+    subprocess.Popen([str(helper),'--apply-update',str(target),str(candidate)],close_fds=True,env=child_environment())
 
 def apply_update(target,candidate):
+    from instance import InstanceLock
+    lock=InstanceLock()
+    if not lock.acquire(timeout=60):raise RuntimeError('프로그램이 아직 실행 중입니다. 종료 후 다시 업데이트하세요.')
+    try:_replace(target,candidate)
+    finally:lock.release()
+    subprocess.Popen([str(target)],cwd=str(Path(target).parent),close_fds=True,env=child_environment())
+
+def _replace(target,candidate):
     target=Path(target);candidate=Path(candidate)
     directory=storage.data_directory()/'backups';directory.mkdir(parents=True,exist_ok=True)
     backup=directory/('previous-'+str(time.time_ns())+'.exe')
@@ -77,8 +91,6 @@ def apply_update(target,candidate):
     else:raise RuntimeError('프로그램이 종료되지 않아 업데이트를 취소했습니다.')
     try:
         shutil.copy2(candidate,target)
-        subprocess.Popen([str(target)],cwd=str(target.parent),close_fds=True)
     except Exception:
         shutil.copy2(backup,target)
-        subprocess.Popen([str(target)],cwd=str(target.parent),close_fds=True)
         raise
