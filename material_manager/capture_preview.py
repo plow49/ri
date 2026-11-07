@@ -20,12 +20,12 @@ def capture():
                         ('HDMI 케이블',3,'반출','신규','2026-11-07','담당자 A','교육실')]:
                 window.store.save(row)
             window.refresh()
-            for name,width,height in [('normal',1200,980),('small',640,480)]:
+            for name,width,height in [('normal',1200,980),('small',640,480),('records',1200,980)]:
                 height=min(height,window.winfo_screenheight()-70)
                 width=min(width,window.winfo_screenwidth()-60)
                 window.geometry(f'{width}x{height}+10+10')
                 window.update();window.lift();window.update()
-                window.scroll_canvas.xview_moveto(0);window.scroll_canvas.yview_moveto(0)
+                window.scroll_canvas.xview_moveto(0);window.scroll_canvas.yview_moveto(1 if name=='records' else 0)
                 window.update_idletasks();window.after(300);window.update()
                 x,y=window.winfo_rootx(),window.winfo_rooty()
                 ImageGrab.grab(bbox=(x,y,x+window.winfo_width(),y+window.winfo_height())).save(output/f'UI-{name}.png')

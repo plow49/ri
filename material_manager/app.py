@@ -172,7 +172,7 @@ class App(tk.Tk):
         columns=('id','item','qty','direction','reason','day','person','destination')
         self.table=ttk.Treeview(body,columns=columns,show='headings',selectmode='browse',height=6)
         for c,label,width in zip(columns,('번호','물품명','수량','반출 / 반입','사유','날짜','이름','반출처'),(50,180,60,100,80,120,110,160)):
-            self.table.heading(c,text=label);self.table.column(c,width=width,minwidth=55,anchor='w' if c in ('item','destination') else 'center')
+            self.table.heading(c,text=label);self.table.column(c,width=width,minwidth=55,anchor='w' if c=='item' else 'center')
         scroll=ttk.Scrollbar(body,orient='vertical',command=self.table.yview);scroll.pack(side='right',fill='y')
         self.table.configure(yscrollcommand=scroll.set);self.table.pack(fill='both',expand=True)
         self.table.tag_configure('alternate',background='#f7f9fb')
