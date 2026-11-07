@@ -153,7 +153,7 @@ class App(tk.Tk):
         grid=ttk.Frame(totals,style='Card.TFrame');grid.pack(fill='x')
         self.summary_table=ttk.Treeview(grid,columns=('item','total','in','out','current'),show='headings',height=4,selectmode='browse')
         for c,label in zip(('item','total','in','out','current'),('물품명','기준 총수량','누적 반입','누적 반출','현재 수량')):
-            self.summary_table.heading(c,text=label);self.summary_table.column(c,width=170,anchor='w' if c=='item' else 'center')
+            self.summary_table.heading(c,text=label);self.summary_table.column(c,width=170,anchor='center')
         scrollbar=ttk.Scrollbar(grid,orient='vertical',command=self.summary_table.yview)
         scrollbar.pack(side='right',fill='y');self.summary_table.configure(yscrollcommand=scrollbar.set)
         self.summary_table.pack(fill='x')
@@ -172,7 +172,7 @@ class App(tk.Tk):
         columns=('id','item','qty','direction','reason','day','person','destination')
         self.table=ttk.Treeview(body,columns=columns,show='headings',selectmode='browse',height=6)
         for c,label,width in zip(columns,('번호','물품명','수량','반출 / 반입','사유','날짜','이름','반출처'),(50,180,60,100,80,120,110,160)):
-            self.table.heading(c,text=label);self.table.column(c,width=width,minwidth=55,anchor='w' if c=='item' else 'center')
+            self.table.heading(c,text=label);self.table.column(c,width=width,minwidth=55,anchor='center')
         scroll=ttk.Scrollbar(body,orient='vertical',command=self.table.yview);scroll.pack(side='right',fill='y')
         self.table.configure(yscrollcommand=scroll.set);self.table.pack(fill='both',expand=True)
         self.table.tag_configure('alternate',background='#f7f9fb')
