@@ -279,7 +279,7 @@ class App(tk.Tk):
     def close(self):self.store.db.close();self.destroy()
     def refresh(self,selected=None):
         self.table.delete(*self.table.get_children());rows=self.store.rows()
-        for n,row in enumerate(rows):self.table.insert('', 'end',iid=str(row[0]),values=row,tags=('alternate',) if n%2 else ())
+        for n,row in enumerate(rows):self.table.insert('', 'end',iid=str(row[0]),values=(n+1,*row[1:]),tags=('alternate',) if n%2 else ())
         if selected is not None and self.table.exists(str(selected)):
             self.table.selection_set(str(selected));self.table.see(str(selected))
         self.summary_table.delete(*self.summary_table.get_children())
@@ -392,6 +392,15 @@ def smoke_test():
             if app.store.summary()[0][-1]!=8: raise RuntimeError('Inventory check failed')
             app.store.delete_item('검증 물품');app.refresh()
             if (app.item_count.get(),app.record_count.get())!=('0종','0건'):raise RuntimeError('Deleted counts not refreshed')
+            for person in ('first','second','third'):
+                app.store.save(('번호 검증',1,'반입','신규','2026-11-07',person))
+            app.refresh()
+            ids=app.table.get_children()
+            if [app.table.set(i,'id') for i in ids]!=['1','2','3']:raise RuntimeError('Display numbering failed')
+            app.table.selection_set(ids[1])
+            app.store.delete_entry(int(app.table.selection()[0]));app.refresh()
+            if [app.table.set(i,'id') for i in app.table.get_children()]!=['1','2']:raise RuntimeError('Renumbering after deletion failed')
+            if [r[6] for r in app.store.rows()]!=['third','first']:raise RuntimeError('Wrong record deleted')
         finally: app.close()
 
 if __name__=='__main__':
