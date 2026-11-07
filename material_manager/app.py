@@ -85,7 +85,8 @@ class App(tk.Tk):
         self.store=Store(DATA_ROOT/'materials.db')
         families=font.families()
         family=next((name for name in ('Malgun Gothic','Noto Sans CJK KR','Segoe UI') if name in families),'DejaVu Sans')
-        self.option_add('*Font',(family,10))
+        for named_font in ('TkDefaultFont','TkTextFont','TkMenuFont','TkHeadingFont'):
+            font.nametofont(named_font).configure(family=family,size=10)
         style=ttk.Style(self);style.theme_use('clam')
         bg='#f3f6fa';ink='#172b43';muted='#66788a';accent='#0f766e'
         style.configure('.',font=(family,10),background=bg,foreground=ink)
@@ -117,7 +118,7 @@ class App(tk.Tk):
         content=ttk.Frame(canvas)
         window=canvas.create_window((0,0),window=content,anchor='nw')
         def resize(event=None):
-            canvas.itemconfigure(window,width=max(1120,canvas.winfo_width()),height=max(content.winfo_reqheight(),canvas.winfo_height()))
+            canvas.itemconfigure(window,width=max(920,canvas.winfo_width()),height=max(content.winfo_reqheight(),canvas.winfo_height()))
             canvas.configure(scrollregion=canvas.bbox('all'))
         canvas.bind('<Configure>',resize);content.bind('<Configure>',lambda e:canvas.configure(scrollregion=canvas.bbox('all')))
         header=tk.Frame(content,bg='#112436');header.pack(fill='x')
