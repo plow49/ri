@@ -24,7 +24,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install build tool
-        run: python -m pip install pyinstaller==6.16.0
+        run: python -m pip install pyinstaller==6.16.0 pillow==12.0.0
       - name: Test data operations
         run: python -m unittest -v
       - name: Build executable with M icon
@@ -43,6 +43,8 @@ jobs:
               raise SystemExit('Smoke test must not create user data beside EXE')
           print('Packaged Windows GUI, icon loading, and SQLite check passed')
           '@ | python -
+      - name: Capture Windows interface previews
+        run: python capture_preview.py
       - name: Prepare download
         run: |
           Copy-Item EXE-사용방법.txt dist/
@@ -54,6 +56,7 @@ jobs:
             material_manager/dist/물품관리.exe
             material_manager/dist/EXE-사용방법.txt
             material_manager/dist/SHA256.txt
+            material_manager/dist/UI-*.png
           if-no-files-found: error
           retention-days: 30
 
@@ -75,4 +78,4 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           cp 'release-files/물품관리.exe' release-files/M-Materials.exe
-          gh release create "$RELEASE_TAG" release-files/M-Materials.exe release-files/EXE-사용방법.txt release-files/SHA256.txt --verify-tag --title "M_물품관리 $RELEASE_TAG" --notes '물품별 수량, 삭제 확인, M 아이콘, 사용자 승인 기반 업데이트 기능. 기존 DB를 백업한 후 EXE를 교체하세요.'
+          gh release create "$RELEASE_TAG" release-files/M-Materials.exe release-files/EXE-사용방법.txt release-files/SHA256.txt release-files/UI-*.png --verify-tag --title "M_물품관리 $RELEASE_TAG" --notes-file release-files/EXE-사용방법.txt
